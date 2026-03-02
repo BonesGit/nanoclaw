@@ -7,7 +7,6 @@ adds:
   - src/channels/session.test.ts
 modifies:
   - src/index.ts
-  - src/config.ts
   - src/routing.test.ts
 structured:
   npm_dependencies:
@@ -16,7 +15,6 @@ structured:
     - SESSION_MNEMONIC
     - SESSION_DISPLAY_NAME
     - SESSION_DATA_PATH
-    - SESSION_ONLY
 conflicts: []
 depends: []
 test: "npx vitest run src/channels/session.test.ts"

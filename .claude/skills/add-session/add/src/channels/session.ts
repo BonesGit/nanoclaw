@@ -1,15 +1,28 @@
+import path from 'path';
+
+import { ASSISTANT_NAME, DATA_DIR } from '../config.js';
+import { readEnvFile } from '../env.js';
+import { logger } from '../logger.js';
 import type {
   Channel,
   OnChatMetadata,
   OnInboundMessage,
   RegisteredGroup,
 } from '../types.js';
-import { logger } from '../logger.js';
 
-export interface SessionChannelOpts {
+const _env = readEnvFile([
+  'SESSION_MNEMONIC',
+  'SESSION_DISPLAY_NAME',
+  'SESSION_DATA_PATH',
+]);
+
+export interface SessionChannelBaseOpts {
   onMessage: OnInboundMessage;
   onChatMetadata: OnChatMetadata;
   registeredGroups: () => Record<string, RegisteredGroup>;
+}
+
+export interface SessionChannelOpts extends SessionChannelBaseOpts {
   dataPath: string;
 }
 
@@ -28,6 +41,18 @@ export class SessionChannel implements Channel {
     this.mnemonic = mnemonic;
     this.displayName = displayName;
     this.opts = opts;
+  }
+
+  static fromEnv(baseOpts: SessionChannelBaseOpts): SessionChannel | null {
+    const mnemonic = process.env.SESSION_MNEMONIC || _env.SESSION_MNEMONIC || '';
+    if (!mnemonic) return null;
+    const displayName =
+      process.env.SESSION_DISPLAY_NAME || _env.SESSION_DISPLAY_NAME || ASSISTANT_NAME;
+    const dataPath =
+      process.env.SESSION_DATA_PATH ||
+      _env.SESSION_DATA_PATH ||
+      path.join(DATA_DIR, 'session');
+    return new SessionChannel(mnemonic, displayName, { ...baseOpts, dataPath });
   }
 
   async connect(): Promise<void> {
@@ -49,7 +74,9 @@ export class SessionChannel implements Channel {
     const sessionId = this.client.getSessionId() as string;
     logger.info({ sessionId }, 'Session channel connected');
     console.log(`\n  Session ID: ${sessionId}`);
-    console.log(`  Share this ID so others can start a conversation with the bot\n`);
+    console.log(
+      `  Share this ID so others can start a conversation with the bot\n`,
+    );
 
     // Start the message loop in the background — connect() returns immediately.
     this._startMessageLoop().catch((err) => {
@@ -94,7 +121,8 @@ export class SessionChannel implements Channel {
 
     const isGroup = (msg.conversationId as string).startsWith('03');
     const chatName =
-      (convo?.displayName as string | undefined) ?? (msg.conversationId as string);
+      (convo?.displayName as string | undefined) ??
+      (msg.conversationId as string);
 
     // Always record chat metadata (enables discovery of unregistered conversations).
     this.opts.onChatMetadata(chatJid, timestamp, chatName, 'session', isGroup);
@@ -102,7 +130,10 @@ export class SessionChannel implements Channel {
     // Only deliver the full message payload for registered conversations.
     const group = this.opts.registeredGroups()[chatJid];
     if (!group) {
-      logger.debug({ chatJid }, 'Session: message from unregistered conversation');
+      logger.debug(
+        { chatJid },
+        'Session: message from unregistered conversation',
+      );
       return;
     }
 
@@ -127,10 +158,7 @@ export class SessionChannel implements Channel {
       is_from_me: false,
     });
 
-    logger.info(
-      { chatJid, sender: msg.source },
-      'Session message stored',
-    );
+    logger.info({ chatJid, sender: msg.source }, 'Session message stored');
   }
 
   async sendMessage(jid: string, text: string): Promise<void> {
