@@ -3,16 +3,19 @@ import path from 'path';
 
 import {
   ASSISTANT_NAME,
+  escapeRegex,
   IDLE_TIMEOUT,
   MAIN_GROUP_FOLDER,
   POLL_INTERVAL,
   TRIGGER_PATTERN,
 } from './config.js';
+import { SessionChannel } from './channels/session.js';
 import { WhatsAppChannel } from './channels/whatsapp.js';
 import {
   ContainerOutput,
   runContainerAgent,
   writeGroupsSnapshot,
+  writeSessionConversationsSnapshot,
   writeTasksSnapshot,
 } from './container-runner.js';
 import {
@@ -119,6 +122,14 @@ export function getAvailableGroups(): import('./container-runner.js').AvailableG
     }));
 }
 
+/** Returns the trigger pattern for a group, falling back to the global pattern. */
+function groupTriggerPattern(group: RegisteredGroup): RegExp {
+  if (group.trigger) {
+    return new RegExp(`^${escapeRegex(group.trigger)}\\b`, 'i');
+  }
+  return TRIGGER_PATTERN;
+}
+
 /** @internal - exported for testing */
 export function _setRegisteredGroups(
   groups: Record<string, RegisteredGroup>,
@@ -153,8 +164,9 @@ async function processGroupMessages(chatJid: string): Promise<boolean> {
 
   // For non-main groups, check if trigger is required and present
   if (!isMainGroup && group.requiresTrigger !== false) {
+    const triggerPattern = groupTriggerPattern(group);
     const hasTrigger = missedMessages.some((m) =>
-      TRIGGER_PATTERN.test(m.content.trim()),
+      triggerPattern.test(m.content.trim()),
     );
     if (!hasTrigger) return true;
   }
@@ -278,6 +290,13 @@ async function runAgent(
     new Set(Object.keys(registeredGroups)),
   );
 
+  // Write Session conversations snapshot if Session channel is active
+  const sessionCh = channels.find((ch) => ch.name === 'session') as SessionChannel | undefined;
+  if (sessionCh?.isConnected()) {
+    const convos = await sessionCh.getConversations().catch(() => []);
+    writeSessionConversationsSnapshot(group.folder, convos);
+  }
+
   // Wrap onOutput to track session ID from streamed results
   const wrappedOnOutput = onOutput
     ? async (output: ContainerOutput) => {
@@ -378,8 +397,9 @@ async function startMessageLoop(): Promise<void> {
           // Non-trigger messages accumulate in DB and get pulled as
           // context when a trigger eventually arrives.
           if (needsTrigger) {
+            const triggerPattern = groupTriggerPattern(group);
             const hasTrigger = groupMessages.some((m) =>
-              TRIGGER_PATTERN.test(m.content.trim()),
+              triggerPattern.test(m.content.trim()),
             );
             if (!hasTrigger) continue;
           }
@@ -475,9 +495,11 @@ async function main(): Promise<void> {
   };
 
   // Create and connect channels
-  whatsapp = new WhatsAppChannel(channelOpts);
-  channels.push(whatsapp);
-  await whatsapp.connect();
+  const sessionChannel = SessionChannel.fromEnv(channelOpts);
+  if (sessionChannel) {
+    channels.push(sessionChannel);
+    await sessionChannel.connect();
+  }
 
   // Start subsystems (independently of connection handler)
   startSchedulerLoop({
@@ -504,11 +526,11 @@ async function main(): Promise<void> {
     },
     registeredGroups: () => registeredGroups,
     registerGroup,
-    syncGroupMetadata: (force) =>
-      whatsapp?.syncGroupMetadata(force) ?? Promise.resolve(),
+    syncGroupMetadata: (_force) => Promise.resolve(),
     getAvailableGroups,
     writeGroupsSnapshot: (gf, im, ag, rj) =>
       writeGroupsSnapshot(gf, im, ag, rj),
+    sessionChannel: channels.find((ch) => ch.name === 'session') as SessionChannel | undefined ?? null,
   });
   queue.setProcessMessagesFn(processGroupMessages);
   recoverPendingMessages();

@@ -22,6 +22,18 @@ describe('JID ownership patterns', () => {
     const jid = '12345678@s.whatsapp.net';
     expect(jid.endsWith('@s.whatsapp.net')).toBe(true);
   });
+
+  it('Session JID: starts with session:', () => {
+    const jid =
+      'session:05abc123def456abc123def456abc123def456abc123def456abc123def456ab';
+    expect(jid.startsWith('session:')).toBe(true);
+  });
+
+  it('Session JID does not match WhatsApp patterns', () => {
+    const jid = 'session:05abc123def456';
+    expect(jid.endsWith('@g.us')).toBe(false);
+    expect(jid.endsWith('@s.whatsapp.net')).toBe(false);
+  });
 });
 
 // --- getAvailableGroups ---

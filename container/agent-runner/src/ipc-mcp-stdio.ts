@@ -14,6 +14,25 @@ import { CronExpressionParser } from 'cron-parser';
 const IPC_DIR = '/workspace/ipc';
 const MESSAGES_DIR = path.join(IPC_DIR, 'messages');
 const TASKS_DIR = path.join(IPC_DIR, 'tasks');
+const RESPONSES_DIR = path.join(IPC_DIR, 'responses');
+
+function newRequestId(): string {
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+async function waitForResponse(requestId: string, timeoutMs = 15000): Promise<unknown> {
+  const responsePath = path.join(RESPONSES_DIR, `${requestId}.json`);
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (fs.existsSync(responsePath)) {
+      const data = JSON.parse(fs.readFileSync(responsePath, 'utf8'));
+      fs.rmSync(responsePath);
+      return data;
+    }
+    await new Promise((r) => setTimeout(r, 100));
+  }
+  throw new Error(`Timed out waiting for response to request ${requestId}`);
+}
 
 // Context from environment variables (set by the agent runner)
 const chatJid = process.env.NANOCLAW_CHAT_JID!;
@@ -277,6 +296,238 @@ Use available_groups.json to find the JID for a group. The folder name should be
     return {
       content: [{ type: 'text' as const, text: `Group "${args.name}" registered. It will start receiving messages immediately.` }],
     };
+  },
+);
+
+server.tool(
+  'session_create_group',
+  'Create a new Session GroupV2 group. Main group only. Returns the new group\'s pubkey (starts with "03").',
+  {
+    name: z.string().describe('Display name for the group'),
+    member_ids: z.array(z.string()).describe('Array of Session IDs to add as members'),
+  },
+  async (args) => {
+    if (!isMain) {
+      return { content: [{ type: 'text' as const, text: 'Only the main group can create Session groups.' }], isError: true };
+    }
+    const requestId = newRequestId();
+    writeIpcFile(TASKS_DIR, {
+      type: 'session_create_group',
+      name: args.name,
+      memberIds: args.member_ids,
+      requestId,
+      timestamp: new Date().toISOString(),
+    });
+    try {
+      const response = await waitForResponse(requestId) as { success: boolean; groupId?: string; error?: string };
+      if (!response.success) {
+        return { content: [{ type: 'text' as const, text: `Failed to create group: ${response.error}` }], isError: true };
+      }
+      return { content: [{ type: 'text' as const, text: `Group created. Group ID: ${response.groupId}` }] };
+    } catch (err) {
+      return { content: [{ type: 'text' as const, text: `Error: ${err instanceof Error ? err.message : String(err)}` }], isError: true };
+    }
+  },
+);
+
+server.tool(
+  'session_add_members',
+  'Add members to a Session group. Main group only.',
+  {
+    group_id: z.string().describe('The group pubkey (starts with "03")'),
+    member_ids: z.array(z.string()).describe('Array of Session IDs to add'),
+    with_history: z.boolean().optional().describe('Whether to share message history with new members'),
+  },
+  async (args) => {
+    if (!isMain) {
+      return { content: [{ type: 'text' as const, text: 'Only the main group can manage Session groups.' }], isError: true };
+    }
+    writeIpcFile(TASKS_DIR, {
+      type: 'session_add_members',
+      groupId: args.group_id,
+      memberIds: args.member_ids,
+      withHistory: args.with_history,
+      timestamp: new Date().toISOString(),
+    });
+    return { content: [{ type: 'text' as const, text: 'Add members request sent.' }] };
+  },
+);
+
+server.tool(
+  'session_remove_members',
+  'Remove members from a Session group. Main group only.',
+  {
+    group_id: z.string().describe('The group pubkey (starts with "03")'),
+    member_ids: z.array(z.string()).describe('Array of Session IDs to remove'),
+    also_remove_messages: z.boolean().optional().describe('Whether to also remove their messages'),
+  },
+  async (args) => {
+    if (!isMain) {
+      return { content: [{ type: 'text' as const, text: 'Only the main group can manage Session groups.' }], isError: true };
+    }
+    writeIpcFile(TASKS_DIR, {
+      type: 'session_remove_members',
+      groupId: args.group_id,
+      memberIds: args.member_ids,
+      alsoRemoveMessages: args.also_remove_messages,
+      timestamp: new Date().toISOString(),
+    });
+    return { content: [{ type: 'text' as const, text: 'Remove members request sent.' }] };
+  },
+);
+
+server.tool(
+  'session_leave_group',
+  'Leave a Session group. Main group only.',
+  {
+    group_id: z.string().describe('The group pubkey (starts with "03")'),
+  },
+  async (args) => {
+    if (!isMain) {
+      return { content: [{ type: 'text' as const, text: 'Only the main group can leave Session groups.' }], isError: true };
+    }
+    writeIpcFile(TASKS_DIR, {
+      type: 'session_leave_group',
+      groupId: args.group_id,
+      timestamp: new Date().toISOString(),
+    });
+    return { content: [{ type: 'text' as const, text: 'Leave group request sent.' }] };
+  },
+);
+
+server.tool(
+  'session_get_conversations',
+  'Get a snapshot of all known Session conversations. Returns the list written before this agent invocation.',
+  {},
+  async () => {
+    const convoFile = path.join(IPC_DIR, 'session_conversations.json');
+    try {
+      if (!fs.existsSync(convoFile)) {
+        return { content: [{ type: 'text' as const, text: 'No Session conversations snapshot found. Session channel may not be active.' }] };
+      }
+      const data = JSON.parse(fs.readFileSync(convoFile, 'utf-8'));
+      const convos = data.conversations as unknown[];
+      if (!convos || convos.length === 0) {
+        return { content: [{ type: 'text' as const, text: `No conversations found (snapshot from ${data.lastSync as string}).` }] };
+      }
+      return { content: [{ type: 'text' as const, text: JSON.stringify({ conversations: convos, lastSync: data.lastSync }, null, 2) }] };
+    } catch (err) {
+      return { content: [{ type: 'text' as const, text: `Error reading conversations: ${err instanceof Error ? err.message : String(err)}` }], isError: true };
+    }
+  },
+);
+
+server.tool(
+  'session_get_messages',
+  'Fetch message history for a Session conversation.',
+  {
+    conversation_id: z.string().describe('The Session conversation ID (Session ID or group pubkey)'),
+    limit: z.number().optional().describe('Maximum number of messages to return'),
+  },
+  async (args) => {
+    const requestId = newRequestId();
+    writeIpcFile(TASKS_DIR, {
+      type: 'session_get_messages',
+      conversationId: args.conversation_id,
+      limit: args.limit,
+      requestId,
+      timestamp: new Date().toISOString(),
+    });
+    try {
+      const response = await waitForResponse(requestId) as { success: boolean; messages?: unknown[]; error?: string };
+      if (!response.success) {
+        return { content: [{ type: 'text' as const, text: `Failed to get messages: ${response.error}` }], isError: true };
+      }
+      return { content: [{ type: 'text' as const, text: JSON.stringify(response.messages, null, 2) }] };
+    } catch (err) {
+      return { content: [{ type: 'text' as const, text: `Error: ${err instanceof Error ? err.message : String(err)}` }], isError: true };
+    }
+  },
+);
+
+server.tool(
+  'session_download_attachment',
+  'Download and decrypt a Session message attachment. Returns the local path inside the container where the file was saved.',
+  {
+    url: z.string().describe('Attachment URL'),
+    key: z.string().describe('Encryption key'),
+    digest: z.string().describe('Attachment digest'),
+    file_name: z.string().optional().describe('Optional file name'),
+  },
+  async (args) => {
+    const requestId = newRequestId();
+    writeIpcFile(TASKS_DIR, {
+      type: 'session_download_attachment',
+      attachment: { url: args.url, key: args.key, digest: args.digest, fileName: args.file_name },
+      requestId,
+      timestamp: new Date().toISOString(),
+    });
+    try {
+      const response = await waitForResponse(requestId) as { success: boolean; localPath?: string; error?: string };
+      if (!response.success) {
+        return { content: [{ type: 'text' as const, text: `Failed to download attachment: ${response.error}` }], isError: true };
+      }
+      return { content: [{ type: 'text' as const, text: `Attachment downloaded to: ${response.localPath}` }] };
+    } catch (err) {
+      return { content: [{ type: 'text' as const, text: `Error: ${err instanceof Error ? err.message : String(err)}` }], isError: true };
+    }
+  },
+);
+
+server.tool(
+  'session_block_contact',
+  'Block a Session ID. Main group only.',
+  {
+    session_id: z.string().describe('The Session ID to block'),
+  },
+  async (args) => {
+    if (!isMain) {
+      return { content: [{ type: 'text' as const, text: 'Only the main group can block Session contacts.' }], isError: true };
+    }
+    writeIpcFile(TASKS_DIR, {
+      type: 'session_block_contact',
+      sessionId: args.session_id,
+      timestamp: new Date().toISOString(),
+    });
+    return { content: [{ type: 'text' as const, text: `Block request sent for ${args.session_id}.` }] };
+  },
+);
+
+server.tool(
+  'session_unblock_contact',
+  'Unblock a Session ID. Main group only.',
+  {
+    session_id: z.string().describe('The Session ID to unblock'),
+  },
+  async (args) => {
+    if (!isMain) {
+      return { content: [{ type: 'text' as const, text: 'Only the main group can unblock Session contacts.' }], isError: true };
+    }
+    writeIpcFile(TASKS_DIR, {
+      type: 'session_unblock_contact',
+      sessionId: args.session_id,
+      timestamp: new Date().toISOString(),
+    });
+    return { content: [{ type: 'text' as const, text: `Unblock request sent for ${args.session_id}.` }] };
+  },
+);
+
+server.tool(
+  'session_set_display_name',
+  "Update the bot's Session display name. Main group only.",
+  {
+    name: z.string().describe('The new display name'),
+  },
+  async (args) => {
+    if (!isMain) {
+      return { content: [{ type: 'text' as const, text: "Only the main group can update the bot's Session display name." }], isError: true };
+    }
+    writeIpcFile(TASKS_DIR, {
+      type: 'session_set_display_name',
+      name: args.name,
+      timestamp: new Date().toISOString(),
+    });
+    return { content: [{ type: 'text' as const, text: `Display name update requested: "${args.name}".` }] };
   },
 );
 
