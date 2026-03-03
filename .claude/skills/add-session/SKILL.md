@@ -302,7 +302,7 @@ launchctl load ~/Library/LaunchAgents/com.nanoclaw.plist
 
 ## Known Limitations
 
-- **No typing indicator**: Session doesn't expose a typing indicator in the headless API — `setTyping` is a no-op.
+- **Typing indicator (DMs only)**: Typing indicators work for direct messages. Group conversations are not supported by the library — `setTyping` is a no-op for group JIDs.
 - **No read receipts**: The library doesn't emit read receipt events.
 - **Message splitting at 2000 chars**: Long responses are split into 2000-character chunks. This is conservative; Session has no hard limit but very long messages may have delivery issues.
 - **GroupV2 only**: The library only supports GroupV2 (`03`-prefix groups). Legacy GroupV1 groups can receive `leaveGroup` but not new messages from the bot.
