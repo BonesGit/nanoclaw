@@ -660,11 +660,21 @@ export interface AvailableGroup {
   isRegistered: boolean;
 }
 
-export function writeSessionConversationsSnapshot(groupFolder: string, conversations: unknown[]): void {
+export function writeSessionConversationsSnapshot(
+  groupFolder: string,
+  conversations: unknown[],
+): void {
   const groupIpcDir = resolveGroupIpcPath(groupFolder);
   fs.mkdirSync(groupIpcDir, { recursive: true });
   const file = path.join(groupIpcDir, 'session_conversations.json');
-  fs.writeFileSync(file, JSON.stringify({ conversations, lastSync: new Date().toISOString() }, null, 2));
+  fs.writeFileSync(
+    file,
+    JSON.stringify(
+      { conversations, lastSync: new Date().toISOString() },
+      null,
+      2,
+    ),
+  );
 }
 
 /**

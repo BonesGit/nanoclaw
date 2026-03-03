@@ -291,7 +291,9 @@ async function runAgent(
   );
 
   // Write Session conversations snapshot if Session channel is active
-  const sessionCh = channels.find((ch) => ch.name === 'session') as SessionChannel | undefined;
+  const sessionCh = channels.find((ch) => ch.name === 'session') as
+    | SessionChannel
+    | undefined;
   if (sessionCh?.isConnected()) {
     const convos = await sessionCh.getConversations().catch(() => []);
     writeSessionConversationsSnapshot(group.folder, convos);
@@ -530,7 +532,10 @@ async function main(): Promise<void> {
     getAvailableGroups,
     writeGroupsSnapshot: (gf, im, ag, rj) =>
       writeGroupsSnapshot(gf, im, ag, rj),
-    sessionChannel: channels.find((ch) => ch.name === 'session') as SessionChannel | undefined ?? null,
+    sessionChannel:
+      (channels.find((ch) => ch.name === 'session') as
+        | SessionChannel
+        | undefined) ?? null,
   });
   queue.setProcessMessagesFn(processGroupMessages);
   recoverPendingMessages();

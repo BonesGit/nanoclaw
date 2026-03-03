@@ -27,7 +27,9 @@ const mockState = vi.hoisted(() => ({
   nextConvo: null as Record<string, unknown> | null,
 }));
 
-const clientRef = vi.hoisted(() => ({ current: null as Record<string, unknown> | null }));
+const clientRef = vi.hoisted(() => ({
+  current: null as Record<string, unknown> | null,
+}));
 
 const MOCK_SESSION_ID =
   '05abc123def456abc123def456abc123def456abc123def456abc123def456ab';
@@ -48,12 +50,14 @@ vi.mock('session-desktop', () => ({
     sendMessage = vi.fn().mockResolvedValue('12345');
     getConversation = vi.fn(async () => mockState.nextConvo);
     acceptContactRequest = vi.fn().mockResolvedValue(undefined);
-    downloadAttachment = vi.fn().mockImplementation(
-      async (att: Record<string, unknown>, destDir: string) => {
-        const fileName = (att.fileName as string | undefined) ?? 'attachment';
-        return `${destDir}/${fileName}`;
-      },
-    );
+    downloadAttachment = vi
+      .fn()
+      .mockImplementation(
+        async (att: Record<string, unknown>, destDir: string) => {
+          const fileName = (att.fileName as string | undefined) ?? 'attachment';
+          return `${destDir}/${fileName}`;
+        },
+      );
     // Returns an async iterator that never yields — prevents background loop from running.
     messages = vi.fn().mockReturnValue({
       [Symbol.asyncIterator]() {
@@ -76,7 +80,9 @@ const REGISTERED_CONV_ID =
   '05registered1234567890abcdef1234567890abcdef1234567890abcdef12345';
 const REGISTERED_JID = `session:${REGISTERED_CONV_ID}`;
 
-function createTestOpts(overrides?: Partial<SessionChannelOpts>): SessionChannelOpts {
+function createTestOpts(
+  overrides?: Partial<SessionChannelOpts>,
+): SessionChannelOpts {
   return {
     onMessage: vi.fn(),
     onChatMetadata: vi.fn(),
@@ -93,11 +99,14 @@ function createTestOpts(overrides?: Partial<SessionChannelOpts>): SessionChannel
   };
 }
 
-function createMsg(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+function createMsg(
+  overrides: Record<string, unknown> = {},
+): Record<string, unknown> {
   return {
     id: 'msg-1',
     conversationId: REGISTERED_CONV_ID,
-    source: '05sender1234567890abcdef1234567890abcdef1234567890abcdef1234567890',
+    source:
+      '05sender1234567890abcdef1234567890abcdef1234567890abcdef1234567890',
     body: 'Hello there',
     timestamp: 1704067200000,
     isOutgoing: false,
@@ -130,10 +139,16 @@ describe('SessionChannel', () => {
     clientRef.current = null;
 
     // Stub fs operations used by the attachment download path.
-    vi.spyOn(fs, 'mkdirSync').mockImplementation((() => undefined) as typeof fs.mkdirSync);
+    vi.spyOn(fs, 'mkdirSync').mockImplementation(
+      (() => undefined) as typeof fs.mkdirSync,
+    );
     vi.spyOn(fs, 'existsSync').mockReturnValue(false);
-    vi.spyOn(fs, 'renameSync').mockImplementation((() => undefined) as typeof fs.renameSync);
-    vi.spyOn(fs, 'rmdirSync').mockImplementation((() => undefined) as typeof fs.rmdirSync);
+    vi.spyOn(fs, 'renameSync').mockImplementation(
+      (() => undefined) as typeof fs.renameSync,
+    );
+    vi.spyOn(fs, 'rmdirSync').mockImplementation(
+      (() => undefined) as typeof fs.rmdirSync,
+    );
   });
 
   afterEach(() => {
@@ -144,7 +159,11 @@ describe('SessionChannel', () => {
 
   describe('channel properties', () => {
     it('has name "session"', () => {
-      const channel = new SessionChannel('test mnemonic', 'Andy', createTestOpts());
+      const channel = new SessionChannel(
+        'test mnemonic',
+        'Andy',
+        createTestOpts(),
+      );
       expect(channel.name).toBe('session');
     });
   });
@@ -153,7 +172,11 @@ describe('SessionChannel', () => {
 
   describe('connection lifecycle', () => {
     it('isConnected() returns false before connect', () => {
-      const channel = new SessionChannel('test mnemonic', 'Andy', createTestOpts());
+      const channel = new SessionChannel(
+        'test mnemonic',
+        'Andy',
+        createTestOpts(),
+      );
       expect(channel.isConnected()).toBe(false);
     });
 
@@ -225,12 +248,20 @@ describe('SessionChannel', () => {
     });
 
     it('disconnect is no-op when not connected', async () => {
-      const channel = new SessionChannel('test mnemonic', 'Andy', createTestOpts());
+      const channel = new SessionChannel(
+        'test mnemonic',
+        'Andy',
+        createTestOpts(),
+      );
       await expect(channel.disconnect()).resolves.toBeUndefined();
     });
 
     it('getSessionId() returns null before connect', () => {
-      const channel = new SessionChannel('test mnemonic', 'Andy', createTestOpts());
+      const channel = new SessionChannel(
+        'test mnemonic',
+        'Andy',
+        createTestOpts(),
+      );
       expect(channel.getSessionId()).toBeNull();
     });
 
@@ -263,7 +294,8 @@ describe('SessionChannel', () => {
         expect.objectContaining({
           id: 'msg-1',
           chat_jid: REGISTERED_JID,
-          sender: '05sender1234567890abcdef1234567890abcdef1234567890abcdef1234567890',
+          sender:
+            '05sender1234567890abcdef1234567890abcdef1234567890abcdef1234567890',
           content: 'Hello there',
           is_from_me: false,
         }),
@@ -541,11 +573,13 @@ describe('SessionChannel', () => {
       const channel = new SessionChannel('test mnemonic', 'Andy', opts);
       await connectChannel(opts, channel);
 
-      (currentClient().getConversation as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
-        new Error('DB error'),
-      );
+      (
+        currentClient().getConversation as ReturnType<typeof vi.fn>
+      ).mockRejectedValueOnce(new Error('DB error'));
 
-      await expect(channel._handleMessage(createMsg())).resolves.toBeUndefined();
+      await expect(
+        channel._handleMessage(createMsg()),
+      ).resolves.toBeUndefined();
     });
 
     it('appends image placeholder when body and image attachment both present', async () => {
@@ -568,7 +602,8 @@ describe('SessionChannel', () => {
       expect(opts.onMessage).toHaveBeenCalledWith(
         REGISTERED_JID,
         expect.objectContaining({
-          content: 'Look at this\n[Image: /workspace/group/attachments/photo.jpg]',
+          content:
+            'Look at this\n[Image: /workspace/group/attachments/photo.jpg]',
         }),
       );
     });
@@ -597,7 +632,10 @@ describe('SessionChannel', () => {
 
       await channel.sendMessage('session:05abc123', 'Hi');
 
-      expect(currentClient().sendMessage).toHaveBeenCalledWith('05abc123', 'Hi');
+      expect(currentClient().sendMessage).toHaveBeenCalledWith(
+        '05abc123',
+        'Hi',
+      );
     });
 
     it('splits messages exceeding 2000 characters', async () => {
@@ -636,9 +674,9 @@ describe('SessionChannel', () => {
       const channel = new SessionChannel('test mnemonic', 'Andy', opts);
       await connectChannel(opts, channel);
 
-      (currentClient().sendMessage as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
-        new Error('Network error'),
-      );
+      (
+        currentClient().sendMessage as ReturnType<typeof vi.fn>
+      ).mockRejectedValueOnce(new Error('Network error'));
 
       await expect(
         channel.sendMessage(REGISTERED_JID, 'Will fail'),
@@ -646,7 +684,11 @@ describe('SessionChannel', () => {
     });
 
     it('does nothing when client is not initialized', async () => {
-      const channel = new SessionChannel('test mnemonic', 'Andy', createTestOpts());
+      const channel = new SessionChannel(
+        'test mnemonic',
+        'Andy',
+        createTestOpts(),
+      );
 
       // Don't connect — client is null
       await channel.sendMessage(REGISTERED_JID, 'No client');
@@ -659,37 +701,65 @@ describe('SessionChannel', () => {
 
   describe('ownsJid', () => {
     it('owns session: JIDs for DMs (05 prefix)', () => {
-      const channel = new SessionChannel('test mnemonic', 'Andy', createTestOpts());
+      const channel = new SessionChannel(
+        'test mnemonic',
+        'Andy',
+        createTestOpts(),
+      );
       expect(channel.ownsJid('session:05abc123def456')).toBe(true);
     });
 
     it('owns session: JIDs for groups (03 prefix)', () => {
-      const channel = new SessionChannel('test mnemonic', 'Andy', createTestOpts());
+      const channel = new SessionChannel(
+        'test mnemonic',
+        'Andy',
+        createTestOpts(),
+      );
       expect(channel.ownsJid('session:03groupabc123')).toBe(true);
     });
 
     it('does not own WhatsApp group JIDs', () => {
-      const channel = new SessionChannel('test mnemonic', 'Andy', createTestOpts());
+      const channel = new SessionChannel(
+        'test mnemonic',
+        'Andy',
+        createTestOpts(),
+      );
       expect(channel.ownsJid('12345@g.us')).toBe(false);
     });
 
     it('does not own WhatsApp DM JIDs', () => {
-      const channel = new SessionChannel('test mnemonic', 'Andy', createTestOpts());
+      const channel = new SessionChannel(
+        'test mnemonic',
+        'Andy',
+        createTestOpts(),
+      );
       expect(channel.ownsJid('12345@s.whatsapp.net')).toBe(false);
     });
 
     it('does not own Telegram JIDs', () => {
-      const channel = new SessionChannel('test mnemonic', 'Andy', createTestOpts());
+      const channel = new SessionChannel(
+        'test mnemonic',
+        'Andy',
+        createTestOpts(),
+      );
       expect(channel.ownsJid('tg:123456789')).toBe(false);
     });
 
     it('does not own bare Session IDs without prefix', () => {
-      const channel = new SessionChannel('test mnemonic', 'Andy', createTestOpts());
+      const channel = new SessionChannel(
+        'test mnemonic',
+        'Andy',
+        createTestOpts(),
+      );
       expect(channel.ownsJid('05abc123def456...')).toBe(false);
     });
 
     it('does not own arbitrary strings', () => {
-      const channel = new SessionChannel('test mnemonic', 'Andy', createTestOpts());
+      const channel = new SessionChannel(
+        'test mnemonic',
+        'Andy',
+        createTestOpts(),
+      );
       expect(channel.ownsJid('random-string')).toBe(false);
     });
   });
@@ -698,21 +768,33 @@ describe('SessionChannel', () => {
 
   describe('setTyping', () => {
     it('resolves without error when isTyping is true', async () => {
-      const channel = new SessionChannel('test mnemonic', 'Andy', createTestOpts());
+      const channel = new SessionChannel(
+        'test mnemonic',
+        'Andy',
+        createTestOpts(),
+      );
       await expect(
         channel.setTyping(REGISTERED_JID, true),
       ).resolves.toBeUndefined();
     });
 
     it('resolves without error when isTyping is false', async () => {
-      const channel = new SessionChannel('test mnemonic', 'Andy', createTestOpts());
+      const channel = new SessionChannel(
+        'test mnemonic',
+        'Andy',
+        createTestOpts(),
+      );
       await expect(
         channel.setTyping(REGISTERED_JID, false),
       ).resolves.toBeUndefined();
     });
 
     it('resolves without error when not connected', async () => {
-      const channel = new SessionChannel('test mnemonic', 'Andy', createTestOpts());
+      const channel = new SessionChannel(
+        'test mnemonic',
+        'Andy',
+        createTestOpts(),
+      );
       await expect(
         channel.setTyping(REGISTERED_JID, true),
       ).resolves.toBeUndefined();

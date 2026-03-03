@@ -36,7 +36,10 @@ function uniqueDestPath(dir: string, fileName: string): string {
   const base = path.basename(fileName, ext);
   let dest = path.join(dir, fileName);
   let n = 0;
-  while (fs.existsSync(dest)) { n++; dest = path.join(dir, `${base}-${n}${ext}`); }
+  while (fs.existsSync(dest)) {
+    n++;
+    dest = path.join(dir, `${base}-${n}${ext}`);
+  }
   return dest;
 }
 
@@ -55,10 +58,13 @@ export class SessionChannel implements Channel {
   }
 
   static fromEnv(baseOpts: SessionChannelBaseOpts): SessionChannel | null {
-    const mnemonic = process.env.SESSION_MNEMONIC || _env.SESSION_MNEMONIC || '';
+    const mnemonic =
+      process.env.SESSION_MNEMONIC || _env.SESSION_MNEMONIC || '';
     if (!mnemonic) return null;
     const displayName =
-      process.env.SESSION_DISPLAY_NAME || _env.SESSION_DISPLAY_NAME || ASSISTANT_NAME;
+      process.env.SESSION_DISPLAY_NAME ||
+      _env.SESSION_DISPLAY_NAME ||
+      ASSISTANT_NAME;
     const dataPath =
       process.env.SESSION_DATA_PATH ||
       _env.SESSION_DATA_PATH ||
@@ -150,9 +156,12 @@ export class SessionChannel implements Channel {
 
     // ── Eager attachment download ────────────────────────────────────────────
     const rawAttachments = (msg.attachments as AnyValue[] | undefined) ?? [];
-    const hasBody = !!((msg.body as string | undefined)?.trim());
+    const hasBody = !!(msg.body as string | undefined)?.trim();
 
-    interface Downloaded { fileName: string; contentType: string }
+    interface Downloaded {
+      fileName: string;
+      contentType: string;
+    }
     const downloaded: Downloaded[] = [];
 
     if (rawAttachments.length > 0) {
@@ -162,10 +171,18 @@ export class SessionChannel implements Channel {
 
       for (const att of rawAttachments) {
         try {
-          const tmpDir = path.join(attachmentsDir, `.tmp-${Math.random().toString(36).slice(2)}`);
+          const tmpDir = path.join(
+            attachmentsDir,
+            `.tmp-${Math.random().toString(36).slice(2)}`,
+          );
           fs.mkdirSync(tmpDir, { recursive: true });
-          const downloadedTmpPath = await (this.client.downloadAttachment(att, tmpDir) as Promise<string>);
-          const originalName = (att.fileName as string | undefined) ?? path.basename(downloadedTmpPath);
+          const downloadedTmpPath = await (this.client.downloadAttachment(
+            att,
+            tmpDir,
+          ) as Promise<string>);
+          const originalName =
+            (att.fileName as string | undefined) ??
+            path.basename(downloadedTmpPath);
           const finalDest = uniqueDestPath(attachmentsDir, originalName);
           fs.renameSync(downloadedTmpPath, finalDest);
           fs.rmdirSync(tmpDir);
@@ -173,9 +190,15 @@ export class SessionChannel implements Channel {
             fileName: path.basename(finalDest),
             contentType: (att.contentType as string | undefined) ?? '',
           });
-          logger.info({ chatJid, fileName: downloaded.at(-1)!.fileName }, 'Session: attachment saved');
+          logger.info(
+            { chatJid, fileName: downloaded.at(-1)!.fileName },
+            'Session: attachment saved',
+          );
         } catch (err) {
-          logger.error({ chatJid, err }, 'Session: failed to download attachment');
+          logger.error(
+            { chatJid, err },
+            'Session: failed to download attachment',
+          );
         }
       }
     }
@@ -183,11 +206,22 @@ export class SessionChannel implements Channel {
     // ── Attachment-only: reply and skip Claude ───────────────────────────────
     if (!hasBody && rawAttachments.length > 0) {
       const n = downloaded.length;
-      const reply = n === 1 ? 'File saved.' : n > 1 ? `${n} files saved.` : 'Could not save file.';
+      const reply =
+        n === 1
+          ? 'File saved.'
+          : n > 1
+            ? `${n} files saved.`
+            : 'Could not save file.';
       await this.sendMessage(chatJid, reply).catch((err) =>
-        logger.error({ chatJid, err }, 'Session: failed to send file-saved reply'),
+        logger.error(
+          { chatJid, err },
+          'Session: failed to send file-saved reply',
+        ),
       );
-      logger.info({ chatJid, savedCount: n }, 'Session: attachment-only message handled');
+      logger.info(
+        { chatJid, savedCount: n },
+        'Session: attachment-only message handled',
+      );
       return;
     }
 
@@ -207,7 +241,8 @@ export class SessionChannel implements Channel {
       id: msg.id as string,
       chat_jid: chatJid,
       sender: msg.source as string,
-      sender_name: (convo?.displayName as string | undefined) ?? (msg.source as string),
+      sender_name:
+        (convo?.displayName as string | undefined) ?? (msg.source as string),
       content,
       timestamp,
       is_from_me: false,
@@ -281,12 +316,20 @@ export class SessionChannel implements Channel {
     return this.client.createGroup(name, memberIds) as Promise<string>;
   }
 
-  async addGroupMembers(groupId: string, memberIds: string[], opts?: { withHistory?: boolean }): Promise<void> {
+  async addGroupMembers(
+    groupId: string,
+    memberIds: string[],
+    opts?: { withHistory?: boolean },
+  ): Promise<void> {
     if (!this.client) throw new Error('Session client not connected');
     await this.client.addGroupMembers(groupId, memberIds, opts);
   }
 
-  async removeGroupMembers(groupId: string, memberIds: string[], opts?: { alsoRemoveMessages?: boolean }): Promise<void> {
+  async removeGroupMembers(
+    groupId: string,
+    memberIds: string[],
+    opts?: { alsoRemoveMessages?: boolean },
+  ): Promise<void> {
     if (!this.client) throw new Error('Session client not connected');
     await this.client.removeGroupMembers(groupId, memberIds, opts);
   }
@@ -301,7 +344,10 @@ export class SessionChannel implements Channel {
     return this.client.getConversations() as Promise<unknown[]>;
   }
 
-  async getMessages(conversationId: string, opts?: { limit?: number }): Promise<unknown[]> {
+  async getMessages(
+    conversationId: string,
+    opts?: { limit?: number },
+  ): Promise<unknown[]> {
     if (!this.client) throw new Error('Session client not connected');
     return this.client.getMessages(conversationId, opts) as Promise<unknown[]>;
   }
@@ -311,7 +357,10 @@ export class SessionChannel implements Channel {
     destDir?: string,
   ): Promise<string> {
     if (!this.client) throw new Error('Session client not connected');
-    return this.client.downloadAttachment(attachment, destDir) as Promise<string>;
+    return this.client.downloadAttachment(
+      attachment,
+      destDir,
+    ) as Promise<string>;
   }
 
   async blockContact(sessionId: string): Promise<void> {

@@ -11,7 +11,11 @@ import {
 } from './config.js';
 import { AvailableGroup } from './container-runner.js';
 import { createTask, deleteTask, getTaskById, updateTask } from './db.js';
-import { isValidGroupFolder, resolveGroupFolderPath, resolveGroupIpcPath } from './group-folder.js';
+import {
+  isValidGroupFolder,
+  resolveGroupFolderPath,
+  resolveGroupIpcPath,
+} from './group-folder.js';
 import { logger } from './logger.js';
 import { RegisteredGroup } from './types.js';
 import type { SessionChannel } from './channels/session.js';
@@ -31,7 +35,11 @@ export interface IpcDeps {
   sessionChannel?: SessionChannel | null;
 }
 
-function writeIpcResponse(groupFolder: string, requestId: string, payload: object): void {
+function writeIpcResponse(
+  groupFolder: string,
+  requestId: string,
+  payload: object,
+): void {
   const responseDir = path.join(resolveGroupIpcPath(groupFolder), 'responses');
   fs.mkdirSync(responseDir, { recursive: true });
   const file = path.join(responseDir, `${requestId}.json`);
@@ -190,7 +198,12 @@ export async function processTaskIpc(
     sessionId?: string;
     conversationId?: string;
     limit?: number;
-    attachment?: { url: string; key: string; digest: string; fileName?: string };
+    attachment?: {
+      url: string;
+      key: string;
+      digest: string;
+      fileName?: string;
+    };
   },
   sourceGroup: string, // Verified identity from IPC directory
   isMain: boolean, // Verified from directory path
@@ -404,39 +417,78 @@ export async function processTaskIpc(
 
     case 'session_create_group':
       if (!isMain) {
-        logger.warn({ sourceGroup }, 'Unauthorized session_create_group attempt blocked');
-        if (data.requestId) writeIpcResponse(sourceGroup, data.requestId, { success: false, error: 'Main group only' });
+        logger.warn(
+          { sourceGroup },
+          'Unauthorized session_create_group attempt blocked',
+        );
+        if (data.requestId)
+          writeIpcResponse(sourceGroup, data.requestId, {
+            success: false,
+            error: 'Main group only',
+          });
         break;
       }
       if (!deps.sessionChannel?.isConnected()) {
-        logger.warn({ sourceGroup }, 'session_create_group: Session channel not available');
-        if (data.requestId) writeIpcResponse(sourceGroup, data.requestId, { success: false, error: 'Session channel not available' });
+        logger.warn(
+          { sourceGroup },
+          'session_create_group: Session channel not available',
+        );
+        if (data.requestId)
+          writeIpcResponse(sourceGroup, data.requestId, {
+            success: false,
+            error: 'Session channel not available',
+          });
         break;
       }
       if (data.name && data.memberIds && data.requestId) {
         try {
-          const groupId = await deps.sessionChannel.createGroup(data.name, data.memberIds);
-          writeIpcResponse(sourceGroup, data.requestId, { success: true, groupId });
-          logger.info({ sourceGroup, groupId }, 'Session group created via IPC');
+          const groupId = await deps.sessionChannel.createGroup(
+            data.name,
+            data.memberIds,
+          );
+          writeIpcResponse(sourceGroup, data.requestId, {
+            success: true,
+            groupId,
+          });
+          logger.info(
+            { sourceGroup, groupId },
+            'Session group created via IPC',
+          );
         } catch (err) {
-          writeIpcResponse(sourceGroup, data.requestId, { success: false, error: String(err) });
+          writeIpcResponse(sourceGroup, data.requestId, {
+            success: false,
+            error: String(err),
+          });
         }
       }
       break;
 
     case 'session_add_members':
       if (!isMain) {
-        logger.warn({ sourceGroup }, 'Unauthorized session_add_members attempt blocked');
+        logger.warn(
+          { sourceGroup },
+          'Unauthorized session_add_members attempt blocked',
+        );
         break;
       }
       if (!deps.sessionChannel?.isConnected()) {
-        logger.warn({ sourceGroup }, 'session_add_members: Session channel not available');
+        logger.warn(
+          { sourceGroup },
+          'session_add_members: Session channel not available',
+        );
         break;
       }
       if (data.groupId && data.memberIds) {
         try {
-          await deps.sessionChannel.addGroupMembers(data.groupId, data.memberIds, { withHistory: data.withHistory });
-          logger.info({ sourceGroup, groupId: data.groupId }, 'Session members added via IPC');
+          await deps.sessionChannel.addGroupMembers(
+            data.groupId,
+            data.memberIds,
+            { withHistory: data.withHistory },
+          );
+          logger.info(
+            { sourceGroup, groupId: data.groupId },
+            'Session members added via IPC',
+          );
         } catch (err) {
           logger.error({ sourceGroup, err }, 'session_add_members failed');
         }
@@ -445,17 +497,30 @@ export async function processTaskIpc(
 
     case 'session_remove_members':
       if (!isMain) {
-        logger.warn({ sourceGroup }, 'Unauthorized session_remove_members attempt blocked');
+        logger.warn(
+          { sourceGroup },
+          'Unauthorized session_remove_members attempt blocked',
+        );
         break;
       }
       if (!deps.sessionChannel?.isConnected()) {
-        logger.warn({ sourceGroup }, 'session_remove_members: Session channel not available');
+        logger.warn(
+          { sourceGroup },
+          'session_remove_members: Session channel not available',
+        );
         break;
       }
       if (data.groupId && data.memberIds) {
         try {
-          await deps.sessionChannel.removeGroupMembers(data.groupId, data.memberIds, { alsoRemoveMessages: data.alsoRemoveMessages });
-          logger.info({ sourceGroup, groupId: data.groupId }, 'Session members removed via IPC');
+          await deps.sessionChannel.removeGroupMembers(
+            data.groupId,
+            data.memberIds,
+            { alsoRemoveMessages: data.alsoRemoveMessages },
+          );
+          logger.info(
+            { sourceGroup, groupId: data.groupId },
+            'Session members removed via IPC',
+          );
         } catch (err) {
           logger.error({ sourceGroup, err }, 'session_remove_members failed');
         }
@@ -464,17 +529,26 @@ export async function processTaskIpc(
 
     case 'session_leave_group':
       if (!isMain) {
-        logger.warn({ sourceGroup }, 'Unauthorized session_leave_group attempt blocked');
+        logger.warn(
+          { sourceGroup },
+          'Unauthorized session_leave_group attempt blocked',
+        );
         break;
       }
       if (!deps.sessionChannel?.isConnected()) {
-        logger.warn({ sourceGroup }, 'session_leave_group: Session channel not available');
+        logger.warn(
+          { sourceGroup },
+          'session_leave_group: Session channel not available',
+        );
         break;
       }
       if (data.groupId) {
         try {
           await deps.sessionChannel.leaveGroup(data.groupId);
-          logger.info({ sourceGroup, groupId: data.groupId }, 'Session group left via IPC');
+          logger.info(
+            { sourceGroup, groupId: data.groupId },
+            'Session group left via IPC',
+          );
         } catch (err) {
           logger.error({ sourceGroup, err }, 'session_leave_group failed');
         }
@@ -483,17 +557,26 @@ export async function processTaskIpc(
 
     case 'session_block_contact':
       if (!isMain) {
-        logger.warn({ sourceGroup }, 'Unauthorized session_block_contact attempt blocked');
+        logger.warn(
+          { sourceGroup },
+          'Unauthorized session_block_contact attempt blocked',
+        );
         break;
       }
       if (!deps.sessionChannel?.isConnected()) {
-        logger.warn({ sourceGroup }, 'session_block_contact: Session channel not available');
+        logger.warn(
+          { sourceGroup },
+          'session_block_contact: Session channel not available',
+        );
         break;
       }
       if (data.sessionId) {
         try {
           await deps.sessionChannel.blockContact(data.sessionId);
-          logger.info({ sourceGroup, sessionId: data.sessionId }, 'Session contact blocked via IPC');
+          logger.info(
+            { sourceGroup, sessionId: data.sessionId },
+            'Session contact blocked via IPC',
+          );
         } catch (err) {
           logger.error({ sourceGroup, err }, 'session_block_contact failed');
         }
@@ -502,17 +585,26 @@ export async function processTaskIpc(
 
     case 'session_unblock_contact':
       if (!isMain) {
-        logger.warn({ sourceGroup }, 'Unauthorized session_unblock_contact attempt blocked');
+        logger.warn(
+          { sourceGroup },
+          'Unauthorized session_unblock_contact attempt blocked',
+        );
         break;
       }
       if (!deps.sessionChannel?.isConnected()) {
-        logger.warn({ sourceGroup }, 'session_unblock_contact: Session channel not available');
+        logger.warn(
+          { sourceGroup },
+          'session_unblock_contact: Session channel not available',
+        );
         break;
       }
       if (data.sessionId) {
         try {
           await deps.sessionChannel.unblockContact(data.sessionId);
-          logger.info({ sourceGroup, sessionId: data.sessionId }, 'Session contact unblocked via IPC');
+          logger.info(
+            { sourceGroup, sessionId: data.sessionId },
+            'Session contact unblocked via IPC',
+          );
         } catch (err) {
           logger.error({ sourceGroup, err }, 'session_unblock_contact failed');
         }
@@ -521,17 +613,26 @@ export async function processTaskIpc(
 
     case 'session_set_display_name':
       if (!isMain) {
-        logger.warn({ sourceGroup }, 'Unauthorized session_set_display_name attempt blocked');
+        logger.warn(
+          { sourceGroup },
+          'Unauthorized session_set_display_name attempt blocked',
+        );
         break;
       }
       if (!deps.sessionChannel?.isConnected()) {
-        logger.warn({ sourceGroup }, 'session_set_display_name: Session channel not available');
+        logger.warn(
+          { sourceGroup },
+          'session_set_display_name: Session channel not available',
+        );
         break;
       }
       if (data.name) {
         try {
           await deps.sessionChannel.setDisplayName(data.name);
-          logger.info({ sourceGroup, name: data.name }, 'Session display name updated via IPC');
+          logger.info(
+            { sourceGroup, name: data.name },
+            'Session display name updated via IPC',
+          );
         } catch (err) {
           logger.error({ sourceGroup, err }, 'session_set_display_name failed');
         }
@@ -540,25 +641,51 @@ export async function processTaskIpc(
 
     case 'session_get_messages':
       if (!deps.sessionChannel?.isConnected()) {
-        logger.warn({ sourceGroup }, 'session_get_messages: Session channel not available');
-        if (data.requestId) writeIpcResponse(sourceGroup, data.requestId, { success: false, error: 'Session channel not available' });
+        logger.warn(
+          { sourceGroup },
+          'session_get_messages: Session channel not available',
+        );
+        if (data.requestId)
+          writeIpcResponse(sourceGroup, data.requestId, {
+            success: false,
+            error: 'Session channel not available',
+          });
         break;
       }
       if (data.conversationId && data.requestId) {
         try {
-          const messages = await deps.sessionChannel.getMessages(data.conversationId, { limit: data.limit });
-          writeIpcResponse(sourceGroup, data.requestId, { success: true, messages });
-          logger.info({ sourceGroup, conversationId: data.conversationId }, 'Session messages fetched via IPC');
+          const messages = await deps.sessionChannel.getMessages(
+            data.conversationId,
+            { limit: data.limit },
+          );
+          writeIpcResponse(sourceGroup, data.requestId, {
+            success: true,
+            messages,
+          });
+          logger.info(
+            { sourceGroup, conversationId: data.conversationId },
+            'Session messages fetched via IPC',
+          );
         } catch (err) {
-          writeIpcResponse(sourceGroup, data.requestId, { success: false, error: String(err) });
+          writeIpcResponse(sourceGroup, data.requestId, {
+            success: false,
+            error: String(err),
+          });
         }
       }
       break;
 
     case 'session_download_attachment':
       if (!deps.sessionChannel?.isConnected()) {
-        logger.warn({ sourceGroup }, 'session_download_attachment: Session channel not available');
-        if (data.requestId) writeIpcResponse(sourceGroup, data.requestId, { success: false, error: 'Session channel not available' });
+        logger.warn(
+          { sourceGroup },
+          'session_download_attachment: Session channel not available',
+        );
+        if (data.requestId)
+          writeIpcResponse(sourceGroup, data.requestId, {
+            success: false,
+            error: 'Session channel not available',
+          });
         break;
       }
       if (data.attachment && data.requestId) {
@@ -566,13 +693,28 @@ export async function processTaskIpc(
           const groupDir = resolveGroupFolderPath(sourceGroup);
           const attachmentsDir = path.join(groupDir, 'attachments');
           fs.mkdirSync(attachmentsDir, { recursive: true });
-          const hostPath = await deps.sessionChannel.downloadAttachment(data.attachment, attachmentsDir);
+          const hostPath = await deps.sessionChannel.downloadAttachment(
+            data.attachment,
+            attachmentsDir,
+          );
           const relPath = path.relative(groupDir, hostPath);
-          const containerPath = path.posix.join('/workspace/group', relPath.split(path.sep).join(path.posix.sep));
-          writeIpcResponse(sourceGroup, data.requestId, { success: true, localPath: containerPath });
-          logger.info({ sourceGroup, containerPath }, 'Session attachment downloaded via IPC');
+          const containerPath = path.posix.join(
+            '/workspace/group',
+            relPath.split(path.sep).join(path.posix.sep),
+          );
+          writeIpcResponse(sourceGroup, data.requestId, {
+            success: true,
+            localPath: containerPath,
+          });
+          logger.info(
+            { sourceGroup, containerPath },
+            'Session attachment downloaded via IPC',
+          );
         } catch (err) {
-          writeIpcResponse(sourceGroup, data.requestId, { success: false, error: String(err) });
+          writeIpcResponse(sourceGroup, data.requestId, {
+            success: false,
+            error: String(err),
+          });
         }
       }
       break;
