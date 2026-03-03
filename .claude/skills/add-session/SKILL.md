@@ -304,7 +304,7 @@ launchctl load ~/Library/LaunchAgents/com.nanoclaw.plist
 
 - **Typing indicator (DMs only)**: Typing indicators work for direct messages. Group conversations are not supported by the library — `setTyping` is a no-op for group JIDs.
 - **No read receipts**: The library doesn't emit read receipt events.
-- **Message splitting at 2000 chars**: Long responses are split into 2000-character chunks. This is conservative; Session has no hard limit but very long messages may have delivery issues.
+- **Message splitting at 2000 chars**: Long text responses are split into 2000-character chunks. This is conservative; Session has no hard limit but very long messages may have delivery issues. File attachments are sent in a single message via `sendFile()` regardless of size.
 - **GroupV2 only**: The library only supports GroupV2 (`03`-prefix groups). Legacy GroupV1 groups can receive `leaveGroup` but not new messages from the bot.
 - **Slow swarm polling**: Message delivery latency is 5–15 seconds depending on network conditions.
 - **One identity per dataPath**: Each `SESSION_DATA_PATH` corresponds to one Session account. To run multiple bot identities, configure separate data paths.

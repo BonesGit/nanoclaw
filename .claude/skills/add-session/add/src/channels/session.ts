@@ -244,6 +244,28 @@ export class SessionChannel implements Channel {
     }
   }
 
+  async sendFile(
+    jid: string,
+    filePath: string,
+    contentType: string,
+    fileName?: string,
+    caption?: string,
+  ): Promise<void> {
+    if (!this.client) {
+      logger.warn('Session client not initialized');
+      return;
+    }
+    const conversationId = jid.replace(/^session:/, '');
+    try {
+      await this.client.sendMessage(conversationId, caption ?? '', {
+        attachments: [{ path: filePath, contentType, fileName }],
+      });
+      logger.info({ jid, filePath, contentType }, 'Session file sent');
+    } catch (err) {
+      logger.error({ jid, filePath, err }, 'Failed to send Session file');
+    }
+  }
+
   isConnected(): boolean {
     return this.client !== null && (this.client.isRegistered() as boolean);
   }
