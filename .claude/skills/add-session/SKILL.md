@@ -97,7 +97,7 @@ All tests must pass (including the new session tests) and build must be clean be
 
 The bot needs its own Session account. The mnemonic is a 13-word phrase that acts as the private key. It only needs to be generated once — on subsequent starts the account loads from the local database.
 
-Generate one now:
+**New identity** — generate a fresh mnemonic:
 
 ```bash
 node -e "
@@ -111,7 +111,7 @@ SessionClient.generateMnemonic().then(m => {
 
 Copy the output. This is the `SESSION_MNEMONIC` value. **Store it safely** — losing it means losing the bot's Session identity permanently.
 
-If the user already has a mnemonic (restoring an existing bot identity), skip generation and use theirs.
+**Existing identity** — if the user already has a mnemonic (restoring a bot they ran before), skip generation and use theirs. At first startup, `restoreAccount()` is called automatically to re-derive the keypair from the mnemonic and load it into the local DB.
 
 ### Configure environment
 
@@ -299,6 +299,27 @@ launchctl unload ~/Library/LaunchAgents/com.nanoclaw.plist
 npm run dev
 launchctl load ~/Library/LaunchAgents/com.nanoclaw.plist
 ```
+
+## Exposed SessionChannel Methods
+
+Beyond the standard `Channel` interface (`sendMessage`, `sendFile`, `isConnected`, etc.), `SessionChannel` exposes additional methods for use from IPC tools or custom code:
+
+| Method | Signature | Description |
+|--------|-----------|-------------|
+| `getConversation` | `(id: string) => Promise<unknown>` | Fetch a single conversation object by ID (no `session:` prefix). |
+| `getConversations` | `() => Promise<unknown[]>` | List all conversations in the local DB. |
+| `getMessages` | `(conversationId, opts?) => Promise<unknown[]>` | Fetch messages for a conversation. |
+| `sendReply` | `(jid, text, quote) => Promise<void>` | Send a quoted reply. `quote` is `{ id, author, text }`. |
+| `sendMessage` | `(jid, text, expireTimer?) => Promise<void>` | Send a text message; optionally set a disappearing-message timer in seconds. |
+| `sendFile` | `(jid, filePath, contentType, fileName?, caption?) => Promise<void>` | Send a file attachment with optional caption. |
+| `restoreAccount` | `(mnemonic: string) => Promise<string>` | Restore a Session identity from a mnemonic into the local DB. Returns the Session ID. |
+| `getSessionId` | `() => string \| null` | Return the bot's Session ID (null before `connect()`). |
+| `setDisplayName` | `(name: string) => Promise<void>` | Update the bot's display name on the network. |
+| `createGroup` | `(name, memberIds) => Promise<string>` | Create a new GroupV2 and return its public key. |
+| `addGroupMembers` / `removeGroupMembers` | `(groupId, memberIds, opts?) => Promise<void>` | Manage group membership. |
+| `leaveGroup` | `(groupId: string) => Promise<void>` | Leave a group. |
+| `blockContact` / `unblockContact` | `(sessionId: string) => Promise<void>` | Block or unblock a contact. |
+| `downloadAttachment` | `(attachment, destDir?) => Promise<string>` | Download an attachment to disk. Returns the local path. |
 
 ## Known Limitations
 

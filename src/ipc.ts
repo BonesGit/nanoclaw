@@ -204,6 +204,17 @@ export async function processTaskIpc(
       digest: string;
       fileName?: string;
     };
+    // For session_send_reply / session_send_message
+    text?: string;
+    quote?: { id: string; author: string; text: string };
+    expireTimer?: number;
+    // For session_send_file
+    filePath?: string;
+    contentType?: string;
+    fileName?: string;
+    caption?: string;
+    // For session_restore_account
+    mnemonic?: string;
   },
   sourceGroup: string, // Verified identity from IPC directory
   isMain: boolean, // Verified from directory path
@@ -718,6 +729,210 @@ export async function processTaskIpc(
         }
       }
       break;
+
+    case 'session_get_conversation':
+      if (!deps.sessionChannel?.isConnected()) {
+        logger.warn(
+          { sourceGroup },
+          'session_get_conversation: Session channel not available',
+        );
+        if (data.requestId)
+          writeIpcResponse(sourceGroup, data.requestId, {
+            success: false,
+            error: 'Session channel not available',
+          });
+        break;
+      }
+      if (data.conversationId && data.requestId) {
+        try {
+          const conversation = await deps.sessionChannel.getConversation(
+            data.conversationId,
+          );
+          writeIpcResponse(sourceGroup, data.requestId, {
+            success: true,
+            conversation,
+          });
+          logger.info(
+            { sourceGroup, conversationId: data.conversationId },
+            'Session conversation fetched via IPC',
+          );
+        } catch (err) {
+          writeIpcResponse(sourceGroup, data.requestId, {
+            success: false,
+            error: String(err),
+          });
+        }
+      }
+      break;
+
+    case 'session_send_reply': {
+      if (!deps.sessionChannel?.isConnected()) {
+        logger.warn(
+          { sourceGroup },
+          'session_send_reply: Session channel not available',
+        );
+        break;
+      }
+      if (data.chatJid && data.text && data.quote) {
+        const targetGroup = registeredGroups[data.chatJid];
+        if (isMain || (targetGroup && targetGroup.folder === sourceGroup)) {
+          try {
+            await deps.sessionChannel.sendReply(
+              data.chatJid,
+              data.text,
+              data.quote,
+            );
+            logger.info(
+              { chatJid: data.chatJid, sourceGroup },
+              'Session reply sent via IPC',
+            );
+          } catch (err) {
+            logger.error({ sourceGroup, err }, 'session_send_reply failed');
+          }
+        } else {
+          logger.warn(
+            { chatJid: data.chatJid, sourceGroup },
+            'Unauthorized session_send_reply attempt blocked',
+          );
+        }
+      }
+      break;
+    }
+
+    case 'session_send_message': {
+      if (!deps.sessionChannel?.isConnected()) {
+        logger.warn(
+          { sourceGroup },
+          'session_send_message: Session channel not available',
+        );
+        break;
+      }
+      if (data.chatJid && data.text) {
+        const targetGroup = registeredGroups[data.chatJid];
+        if (isMain || (targetGroup && targetGroup.folder === sourceGroup)) {
+          try {
+            await deps.sessionChannel.sendMessage(
+              data.chatJid,
+              data.text,
+              data.expireTimer,
+            );
+            logger.info(
+              { chatJid: data.chatJid, sourceGroup },
+              'Session message sent via IPC',
+            );
+          } catch (err) {
+            logger.error({ sourceGroup, err }, 'session_send_message failed');
+          }
+        } else {
+          logger.warn(
+            { chatJid: data.chatJid, sourceGroup },
+            'Unauthorized session_send_message attempt blocked',
+          );
+        }
+      }
+      break;
+    }
+
+    case 'session_restore_account':
+      if (!isMain) {
+        logger.warn(
+          { sourceGroup },
+          'Unauthorized session_restore_account attempt blocked',
+        );
+        if (data.requestId)
+          writeIpcResponse(sourceGroup, data.requestId, {
+            success: false,
+            error: 'Main group only',
+          });
+        break;
+      }
+      if (!deps.sessionChannel?.isConnected()) {
+        logger.warn(
+          { sourceGroup },
+          'session_restore_account: Session channel not available',
+        );
+        if (data.requestId)
+          writeIpcResponse(sourceGroup, data.requestId, {
+            success: false,
+            error: 'Session channel not available',
+          });
+        break;
+      }
+      if (data.mnemonic && data.requestId) {
+        try {
+          const sessionId = await deps.sessionChannel.restoreAccount(
+            data.mnemonic,
+          );
+          writeIpcResponse(sourceGroup, data.requestId, {
+            success: true,
+            sessionId,
+          });
+          logger.info(
+            { sourceGroup, sessionId },
+            'Session account restored via IPC',
+          );
+        } catch (err) {
+          writeIpcResponse(sourceGroup, data.requestId, {
+            success: false,
+            error: String(err),
+          });
+        }
+      }
+      break;
+
+    case 'session_send_file': {
+      if (!deps.sessionChannel?.isConnected()) {
+        logger.warn(
+          { sourceGroup },
+          'session_send_file: Session channel not available',
+        );
+        break;
+      }
+      if (data.chatJid && data.filePath && data.contentType) {
+        const targetGroup = registeredGroups[data.chatJid];
+        if (!isMain && !(targetGroup && targetGroup.folder === sourceGroup)) {
+          logger.warn(
+            { chatJid: data.chatJid, sourceGroup },
+            'Unauthorized session_send_file attempt blocked',
+          );
+          break;
+        }
+        const containerPrefix = '/workspace/group/';
+        if (!data.filePath.startsWith(containerPrefix)) {
+          logger.warn(
+            { filePath: data.filePath, sourceGroup },
+            'session_send_file: path must be under /workspace/group/',
+          );
+          break;
+        }
+        const rel = data.filePath.slice(containerPrefix.length);
+        const groupDir = resolveGroupFolderPath(sourceGroup);
+        const hostPath = path.join(groupDir, rel);
+        if (!hostPath.startsWith(groupDir + path.sep)) {
+          logger.warn(
+            { filePath: data.filePath, sourceGroup },
+            'session_send_file: path traversal attempt blocked',
+          );
+          break;
+        }
+        try {
+          await deps.sessionChannel.sendFile(
+            data.chatJid,
+            hostPath,
+            data.contentType,
+            data.fileName,
+            data.caption,
+          );
+          logger.info(
+            { chatJid: data.chatJid, sourceGroup, hostPath },
+            'Session file sent via IPC',
+          );
+        } catch (err) {
+          logger.error({ sourceGroup, err }, 'session_send_file failed');
+        }
+      }
+      break;
+    }
 
     default:
       logger.warn({ type: data.type }, 'Unknown IPC task type');

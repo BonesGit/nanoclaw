@@ -85,7 +85,8 @@ export class SessionChannel implements Channel {
     // First run: no account in DB yet — create one from the mnemonic.
     // Subsequent runs: account loads automatically from the encrypted DB.
     if (!this.client.isRegistered()) {
-      await this.client.createAccount(this.mnemonic, this.displayName);
+      await this.client.restoreAccount(this.mnemonic);
+      await this.client.setDisplayName(this.displayName);
     }
 
     const sessionId = this.client.getSessionId() as string;
@@ -251,7 +252,7 @@ export class SessionChannel implements Channel {
     logger.info({ chatJid, sender: msg.source }, 'Session message stored');
   }
 
-  async sendMessage(jid: string, text: string): Promise<void> {
+  async sendMessage(jid: string, text: string, expireTimer?: number): Promise<void> {
     if (!this.client) {
       logger.warn('Session client not initialized');
       return;
@@ -262,14 +263,16 @@ export class SessionChannel implements Channel {
     // Session has no hard message-length limit, but splitting at 2000 chars
     // keeps individual messages readable and avoids any server-side limits.
     const MAX_LENGTH = 2000;
+    const opts = expireTimer ? { expireTimer } : undefined;
     try {
       if (text.length <= MAX_LENGTH) {
-        await this.client.sendMessage(conversationId, text);
+        await this.client.sendMessage(conversationId, text, opts);
       } else {
         for (let i = 0; i < text.length; i += MAX_LENGTH) {
           await this.client.sendMessage(
             conversationId,
             text.slice(i, i + MAX_LENGTH),
+            opts,
           );
         }
       }
@@ -298,6 +301,24 @@ export class SessionChannel implements Channel {
       logger.info({ jid, filePath, contentType }, 'Session file sent');
     } catch (err) {
       logger.error({ jid, filePath, err }, 'Failed to send Session file');
+    }
+  }
+
+  async sendReply(
+    jid: string,
+    text: string,
+    quote: { id: string; author: string; text: string },
+  ): Promise<void> {
+    if (!this.client) {
+      logger.warn('Session client not initialized');
+      return;
+    }
+    const conversationId = jid.replace(/^session:/, '');
+    try {
+      await this.client.sendMessage(conversationId, text, { quote });
+      logger.info({ jid }, 'Session reply sent');
+    } catch (err) {
+      logger.error({ jid, err }, 'Failed to send Session reply');
     }
   }
 
@@ -333,6 +354,13 @@ export class SessionChannel implements Channel {
     return (this.client?.getSessionId() as string | null | undefined) ?? null;
   }
 
+  async restoreAccount(mnemonic: string): Promise<string> {
+    if (!this.client) throw new Error('Session client not connected');
+    const sessionId = await this.client.restoreAccount(mnemonic) as string;
+    logger.info({ sessionId }, 'Session account restored');
+    return sessionId;
+  }
+
   async createGroup(name: string, memberIds: string[]): Promise<string> {
     if (!this.client) throw new Error('Session client not connected');
     return this.client.createGroup(name, memberIds) as Promise<string>;
@@ -364,6 +392,11 @@ export class SessionChannel implements Channel {
   async getConversations(): Promise<unknown[]> {
     if (!this.client) throw new Error('Session client not connected');
     return this.client.getConversations() as Promise<unknown[]>;
+  }
+
+  async getConversation(id: string): Promise<unknown> {
+    if (!this.client) throw new Error('Session client not connected');
+    return this.client.getConversation(id);
   }
 
   async getMessages(
