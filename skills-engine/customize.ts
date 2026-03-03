@@ -99,6 +99,14 @@ export function commitCustomize(): void {
     const oldPath = fs.existsSync(basePath) ? basePath : '/dev/null';
     const newPath = fs.existsSync(currentPath) ? currentPath : '/dev/null';
 
+    // Catch corrupted state early: a directory where a file is expected
+    // would cause diff to silently misbehave rather than error.
+    if (oldPath !== '/dev/null' && fs.statSync(oldPath).isDirectory()) {
+      throw new Error(
+        `diff error for ${relativePath}: base path is a directory, not a file`,
+      );
+    }
+
     try {
       const diff = execFileSync('diff', ['-ruN', oldPath, newPath], {
         encoding: 'utf-8',
