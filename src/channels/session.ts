@@ -236,6 +236,15 @@ export class SessionChannel implements Channel {
       }
     }
 
+    // Normalize Session @mention → trigger word so shared trigger logic fires.
+    const sessionId = this.getSessionId();
+    if (sessionId && content.includes(`@${sessionId}`)) {
+      content = content.replace(
+        new RegExp(`@${sessionId}`, 'gi'),
+        `@${ASSISTANT_NAME}`,
+      );
+    }
+
     if (!content) return;
 
     this.opts.onMessage(chatJid, {

@@ -125,7 +125,7 @@ export function getAvailableGroups(): import('./container-runner.js').AvailableG
 /** Returns the trigger pattern for a group, falling back to the global pattern. */
 function groupTriggerPattern(group: RegisteredGroup): RegExp {
   if (group.trigger) {
-    return new RegExp(`^${escapeRegex(group.trigger)}\\b`, 'i');
+    return new RegExp(`${escapeRegex(group.trigger)}\\b`, 'i');
   }
   return TRIGGER_PATTERN;
 }
