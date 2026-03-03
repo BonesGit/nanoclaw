@@ -252,7 +252,11 @@ export class SessionChannel implements Channel {
     logger.info({ chatJid, sender: msg.source }, 'Session message stored');
   }
 
-  async sendMessage(jid: string, text: string, expireTimer?: number): Promise<void> {
+  async sendMessage(
+    jid: string,
+    text: string,
+    expireTimer?: number,
+  ): Promise<void> {
     if (!this.client) {
       logger.warn('Session client not initialized');
       return;
@@ -356,7 +360,7 @@ export class SessionChannel implements Channel {
 
   async restoreAccount(mnemonic: string): Promise<string> {
     if (!this.client) throw new Error('Session client not connected');
-    const sessionId = await this.client.restoreAccount(mnemonic) as string;
+    const sessionId = (await this.client.restoreAccount(mnemonic)) as string;
     logger.info({ sessionId }, 'Session account restored');
     return sessionId;
   }
