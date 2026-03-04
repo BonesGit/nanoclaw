@@ -5,7 +5,10 @@ description: Add Session as a channel. Session is a decentralized, end-to-end en
 
 # Add Session Channel
 
-This skill adds [Session](https://getsession.org) messaging support to NanoClaw using the `session-desktop` headless library. The bot runs a real Session node — it has its own Session ID, receives messages via swarm polling, and sends over the Session network.
+This skill adds [Session](https://getsession.org) messaging support to NanoClaw using the `session-desktop-library` headless library. The bot runs a real Session node — it has its own Session ID, receives messages via swarm polling, and sends over the Session network.
+
+### Dependency
+- Node.js: v24.12.0
 
 ## Phase 1: Pre-flight
 
@@ -19,42 +22,57 @@ AskUserQuestion: Should Session replace WhatsApp or run alongside it?
 - **Replace WhatsApp** — Session will be the only channel (sets `SESSION_ONLY=true`)
 - **Alongside** — Both Session and WhatsApp (and any other channels) remain active
 
-## Phase 2: Install Library + Apply Code Changes
+## Phase 2: Install Library
 
-### Build the library
-
-The `session-desktop` library must be compiled before installation. Run this in the library directory:
+### Install `session-desktop-library` from npm
 
 ```bash
-cd ../session-desktop-library && npm run build:lib && cd -
-```
+npm install @bonesgit/session-desktop-library
+``` 
 
-This compiles TypeScript to `dist-lib/`. It takes ~30 seconds. If it fails, check that the library's dependencies are installed:
+### Install `session-desktop-library` from source
+
+#### Build the Session desktop app
+
+Follow `../session-desktop-library/CONTRIBUTING.md` first. Check that the desktop's dependencies are installed and the desktop app is built first:
+
+
+#### Build the library
+
+The `session-desktop-library` library must be compiled before installation. Run this in the library directory:
 
 ```bash
-cd ../session-desktop-library && pnpm install && npm run build:lib && cd -
+cd ../session-desktop-library && pnpm run build:lib && cd -
 ```
 
-### Install the library as a local dependency
+This compiles TypeScript to `dist-lib/`. It takes ~30 seconds. If it fails, check that the library's dependencies are installed and the desktop app is built first:
+
+```bash
+cd ../session-desktop-library && pnpm install && pnpm run build && cd -
+```
+
+#### Install the library as a local dependency
 
 ```bash
 npm install file:../session-desktop-library --legacy-peer-deps
 ```
 
-This links the compiled library into nanoclaw's `node_modules` as `session-desktop`.
+This links the compiled library into nanoclaw's `node_modules` as `session-desktop-library`.
 
 Verify the install succeeded:
 
 ```bash
-node -e "require('session-desktop'); console.log('OK')"
+node -e "require('session-desktop-library'); console.log('OK')"
 ```
 
 If it fails with a native module error, the library's native dependencies (`libsession_util_nodejs`, `@signalapp/sqlcipher`) may need rebuilding:
 
 ```bash
-cd ../session-desktop-library && npm rebuild && cd -
+cd ../session-desktop-library && pnpm rebuild && cd -
 npm install file:../session-desktop-library --legacy-peer-deps
 ```
+
+## Phase 3: Apply Code Changes
 
 ### Initialize skills system (if needed)
 
@@ -91,7 +109,7 @@ npm run build
 
 All tests must pass (including the new session tests) and build must be clean before proceeding.
 
-## Phase 3: Setup
+## Phase 4: Setup
 
 ### Generate a Session account mnemonic
 
@@ -101,7 +119,7 @@ The bot needs its own Session account. The mnemonic is a 13-word phrase that act
 
 ```bash
 node -e "
-const { SessionClient } = require('session-desktop');
+const { SessionClient } = require('session-desktop-library');
 SessionClient.generateMnemonic().then(m => {
   console.log('MNEMONIC:', m);
   process.exit(0);
@@ -175,7 +193,7 @@ Or restart with `npm run dev` to see it printed in the terminal:
 
 Tell the user: **Share this Session ID with anyone who wants to message the bot.** They add it as a contact in their Session app and send the first message.
 
-## Phase 4: Registration
+## Phase 5: Registration
 
 ### Identify the conversation JID
 
@@ -216,7 +234,7 @@ npx tsx setup/index.ts --step register \
   --folder "<folder-name>"
 ```
 
-## Phase 5: Verify
+## Phase 6: Verify
 
 ### Test the connection
 
@@ -255,7 +273,7 @@ The account hasn't been created yet. Check `logs/nanoclaw.log` for errors during
 
 ### Native module errors
 
-`session-desktop` uses native Node.js addons (`libsession_util_nodejs`, `@signalapp/sqlcipher`). If you see errors like `Cannot find module` or `invalid ELF header`:
+`session-desktop-library` uses native Node.js addons (`libsession_util_nodejs`, `@signalapp/sqlcipher`). If you see errors like `Cannot find module` or `invalid ELF header`:
 
 ```bash
 # Rebuild native modules against the current Node.js version
@@ -320,6 +338,7 @@ Beyond the standard `Channel` interface (`sendMessage`, `sendFile`, `isConnected
 | `leaveGroup` | `(groupId: string) => Promise<void>` | Leave a group. |
 | `blockContact` / `unblockContact` | `(sessionId: string) => Promise<void>` | Block or unblock a contact. |
 | `downloadAttachment` | `(attachment, destDir?) => Promise<string>` | Download an attachment to disk. Returns the local path. |
+| `setTyping` | `(jid, isTyping) => Promise<void>` | Set the typing status for a conversation. |
 
 ## Known Limitations
 
@@ -339,7 +358,7 @@ To remove Session integration:
 2. Remove `SessionChannel` import and creation from `src/index.ts`
 3. Remove Session config (`SESSION_MNEMONIC`, `SESSION_DISPLAY_NAME`, `SESSION_DATA_PATH`, `SESSION_ONLY`) from `src/config.ts`
 4. Remove Session registrations from SQLite: `sqlite3 store/messages.db "DELETE FROM registered_groups WHERE jid LIKE 'session:%'"`
-5. Uninstall: `npm uninstall session-desktop`
+5. Uninstall: `npm uninstall session-desktop-library`
 6. Rebuild: `npm run build && systemctl --user restart nanoclaw`
 
 The Session account data in `data/session/` is preserved. Delete that directory too if you want to fully wipe the bot's Session identity.

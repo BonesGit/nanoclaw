@@ -18,7 +18,7 @@ vi.mock('../logger.js', () => ({
   },
 }));
 
-// --- session-desktop mock ---
+// --- session-desktop-library mock ---
 
 // Shared state across the mock instance — set before connect() to control behavior.
 const mockState = vi.hoisted(() => ({
@@ -34,7 +34,7 @@ const clientRef = vi.hoisted(() => ({
 const MOCK_SESSION_ID =
   '05abc123def456abc123def456abc123def456abc123def456abc123def456ab';
 
-vi.mock('session-desktop', () => ({
+vi.mock('session-desktop-library', () => ({
   SessionClient: class MockSessionClient {
     config: Record<string, unknown>;
 

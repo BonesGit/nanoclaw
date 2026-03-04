@@ -67,7 +67,7 @@ export class SessionChannel implements Channel {
   }
 
   async connect(): Promise<void> {
-    const { SessionClient } = await import('session-desktop');
+    const { SessionClient } = await import('session-desktop-library');
 
     this.client = new SessionClient({
       dataPath: this.opts.dataPath,
@@ -317,9 +317,9 @@ export class SessionChannel implements Channel {
     const conversationId = jid.replace(/^session:/, '');
     if (conversationId.startsWith('03')) return; // groups not supported
     try {
-      await this.client.setTypingIndicator(conversationId, isTyping);
+      await this.client.setTyping(conversationId, isTyping);
     } catch (err) {
-      logger.debug({ jid, err }, 'Session: setTypingIndicator failed');
+      logger.debug({ jid, err }, 'Session: setTyping failed');
     }
   }
 

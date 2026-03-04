@@ -1,6 +1,6 @@
 skill: session
 version: 1.0.0
-description: "Session decentralized messaging channel via session-desktop headless library"
+description: "Session decentralized messaging channel via session-desktop-library headless library"
 core_version: 0.1.0
 adds:
   - src/channels/session.ts
@@ -10,7 +10,7 @@ modifies:
   - src/routing.test.ts
 structured:
   npm_dependencies:
-    session-desktop: "file:../session-desktop-library"
+    session-desktop-library: "file:../session-desktop-library"
   env_additions:
     - SESSION_MNEMONIC
     - SESSION_DISPLAY_NAME
