@@ -531,6 +531,80 @@ server.tool(
   },
 );
 
+server.tool(
+  'session_send_file',
+  'Send a file to a Session conversation. The file must already exist under /workspace/group/ (e.g. an attachment you previously saved or generated).',
+  {
+    chat_jid: z.string().describe('The session: prefixed JID of the conversation to send to'),
+    file_path: z.string().describe('Absolute container path to the file, must start with /workspace/group/'),
+    content_type: z.string().describe('MIME type of the file (e.g. "image/png", "application/pdf", "audio/ogg")'),
+    file_name: z.string().optional().describe('File name to show in the message (defaults to the file\'s base name)'),
+    caption: z.string().optional().describe('Optional caption text to accompany the file'),
+  },
+  async (args) => {
+    const targetGroup = isMain ? null : groupFolder;
+    writeIpcFile(TASKS_DIR, {
+      type: 'session_send_file',
+      chatJid: args.chat_jid,
+      filePath: args.file_path,
+      contentType: args.content_type,
+      fileName: args.file_name,
+      caption: args.caption,
+      groupFolder: targetGroup ?? groupFolder,
+      timestamp: new Date().toISOString(),
+    });
+    return { content: [{ type: 'text' as const, text: 'File send request submitted.' }] };
+  },
+);
+
+server.tool(
+  'session_send_reply',
+  'Send a quoted reply to a specific Session message.',
+  {
+    chat_jid: z.string().describe('The session: prefixed JID of the conversation'),
+    text: z.string().describe('The reply text'),
+    quote_id: z.string().describe('ID of the message to quote'),
+    quote_author: z.string().describe('Session ID of the original message author'),
+    quote_text: z.string().describe('Text of the original message being quoted'),
+  },
+  async (args) => {
+    writeIpcFile(TASKS_DIR, {
+      type: 'session_send_reply',
+      chatJid: args.chat_jid,
+      text: args.text,
+      quote: { id: args.quote_id, author: args.quote_author, text: args.quote_text },
+      timestamp: new Date().toISOString(),
+    });
+    return { content: [{ type: 'text' as const, text: 'Reply sent.' }] };
+  },
+);
+
+server.tool(
+  'session_get_conversation',
+  'Fetch metadata for a specific Session conversation (display name, member list, etc.).',
+  {
+    conversation_id: z.string().describe('The Session conversation ID (Session ID or group pubkey starting with "03")'),
+  },
+  async (args) => {
+    const requestId = newRequestId();
+    writeIpcFile(TASKS_DIR, {
+      type: 'session_get_conversation',
+      conversationId: args.conversation_id,
+      requestId,
+      timestamp: new Date().toISOString(),
+    });
+    try {
+      const response = await waitForResponse(requestId) as { success: boolean; conversation?: unknown; error?: string };
+      if (!response.success) {
+        return { content: [{ type: 'text' as const, text: `Failed to get conversation: ${response.error}` }], isError: true };
+      }
+      return { content: [{ type: 'text' as const, text: JSON.stringify(response.conversation, null, 2) }] };
+    } catch (err) {
+      return { content: [{ type: 'text' as const, text: `Error: ${err instanceof Error ? err.message : String(err)}` }], isError: true };
+    }
+  },
+);
+
 // Start the stdio transport
 const transport = new StdioServerTransport();
 await server.connect(transport);

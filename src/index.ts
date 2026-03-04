@@ -1,8 +1,10 @@
+import { execFileSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 
 import {
   ASSISTANT_NAME,
+  DATA_DIR,
   escapeRegex,
   IDLE_TIMEOUT,
   MAIN_GROUP_FOLDER,
@@ -23,6 +25,7 @@ import {
   ensureContainerRuntimeRunning,
 } from './container-runtime.js';
 import {
+  clearAllSessions,
   getAllChats,
   getAllRegisteredGroups,
   getAllSessions,
@@ -467,11 +470,53 @@ function ensureContainerSystemRunning(): void {
   cleanupOrphans();
 }
 
+/**
+ * If the container image SHA has changed since last run, clear all stored
+ * session IDs so the next agent invocation starts a fresh session and
+ * discovers the current MCP tool list.
+ */
+function invalidateSessionsIfImageChanged(): void {
+  try {
+    const sha = execFileSync(
+      'docker',
+      ['inspect', 'nanoclaw-agent:latest', '--format', '{{.Id}}'],
+      { encoding: 'utf-8' },
+    ).trim();
+    const stored = getRouterState('container_image_hash');
+    if (sha && sha !== stored) {
+      clearAllSessions();
+      // Wipe stale per-group agent-runner source copies so they get re-created
+      // from the updated image source on next container run.
+      const sessionsDir = path.join(DATA_DIR, 'sessions');
+      if (fs.existsSync(sessionsDir)) {
+        for (const entry of fs.readdirSync(sessionsDir)) {
+          const staleDir = path.join(sessionsDir, entry, 'agent-runner-src');
+          if (fs.existsSync(staleDir)) {
+            fs.rmSync(staleDir, { recursive: true, force: true });
+          }
+        }
+      }
+      setRouterState('container_image_hash', sha);
+      logger.info(
+        { sha },
+        'Container image changed — cleared session IDs and agent-runner-src copies for fresh tool discovery',
+      );
+    }
+  } catch (err) {
+    // Docker not available or image not found — skip silently
+    logger.debug(
+      { err },
+      'Could not check container image hash, skipping session invalidation',
+    );
+  }
+}
+
 async function main(): Promise<void> {
   ensureContainerSystemRunning();
   initDatabase();
   logger.info('Database initialized');
   loadState();
+  invalidateSessionsIfImageChanged();
 
   // Graceful shutdown handlers
   const shutdown = async (signal: string) => {
