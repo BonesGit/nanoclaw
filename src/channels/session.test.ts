@@ -34,7 +34,7 @@ const clientRef = vi.hoisted(() => ({
 const MOCK_SESSION_ID =
   '05abc123def456abc123def456abc123def456abc123def456abc123def456ab';
 
-vi.mock('session-desktop-library', () => ({
+vi.mock('@bonesgit/session-desktop-library', () => ({
   SessionClient: class MockSessionClient {
     config: Record<string, unknown>;
 

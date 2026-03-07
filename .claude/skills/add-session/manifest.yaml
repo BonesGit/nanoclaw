@@ -10,7 +10,7 @@ modifies:
   - src/routing.test.ts
 structured:
   npm_dependencies:
-    session-desktop-library: "file:../session-desktop-library"
+    "@bonesgit/session-desktop-library": "^0.1.5"
   env_additions:
     - SESSION_MNEMONIC
     - SESSION_DISPLAY_NAME

@@ -67,7 +67,7 @@ export class SessionChannel implements Channel {
   }
 
   async connect(): Promise<void> {
-    const { SessionClient } = await import('session-desktop-library');
+    const { SessionClient } = await import('@bonesgit/session-desktop-library');
 
     this.client = new SessionClient({
       dataPath: this.opts.dataPath,
